@@ -21,7 +21,7 @@ export function RippleInput({ value, onChange, onEnter, status, disabled }: Ripp
   }, [status, disabled]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !disabled) {
       onEnter();
     }
   };

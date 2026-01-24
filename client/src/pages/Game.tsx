@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useVerbs } from "@/hooks/use-verbs";
 import { generateQuestions, GameConfig, Question } from "@/lib/game-logic";
@@ -12,68 +12,94 @@ export default function Game() {
   const [location, setLocation] = useLocation();
   const { data: verbs, isLoading, error } = useVerbs();
   
-  // Parse URL params for config
-  const searchParams = new URLSearchParams(window.location.search);
-  const config = useMemo<GameConfig>(() => ({
-    mode: (searchParams.get("mode") as GameConfig["mode"]) || "conjugation",
-    sourceLanguage: (searchParams.get("source") as GameConfig["sourceLanguage"]) || "en",
-    tenses: (searchParams.get("tenses")?.split(",") as Tense[]) || ["Presente"]
-  }), [searchParams]);
-
   // Game State
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [status, setStatus] = useState<"idle" | "correct" | "wrong1" | "wrong2">("idle");
   const [inputValue, setInputValue] = useState("");
   const [lastWrongAnswer, setLastWrongAnswer] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  // Initialize Questions
+  // Parse URL params for config - only once on mount
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const newConfig: GameConfig = {
+      mode: (searchParams.get("mode") as GameConfig["mode"]) || "conjugation",
+      sourceLanguage: (searchParams.get("source") as GameConfig["sourceLanguage"]) || "en",
+      tenses: (searchParams.get("tenses")?.split(",") as Tense[]) || ["Presente"]
+    };
+
     if (verbs && verbs.length > 0) {
-      const qs = generateQuestions(verbs, config);
+      const qs = generateQuestions(verbs, newConfig);
       setQuestions(qs);
     }
-  }, [verbs, config]);
+  }, [verbs]);
+
+  // Log status changes
+  useEffect(() => {
+    console.log("Status changed to:", status);
+  }, [status]);
 
   const currentQuestion = questions[currentIndex];
 
   const handleEnter = () => {
-    if (status === "correct" || status === "wrong2") return; // Block input during animations/card state
+    // Block if already processing or when showing card/correct answer
+    if (isProcessing || status === "correct" || status === "wrong2") {
+      console.log("Blocked handleEnter:", { isProcessing, status });
+      return;
+    }
+    
+    // Prevent empty submissions
+    if (!inputValue.trim()) return;
+
+    setIsProcessing(true);
+    console.log("handleEnter called, status:", status);
 
     const normalizedInput = inputValue.trim().toLowerCase();
     const normalizedAnswer = currentQuestion.correctAnswer.trim().toLowerCase();
 
     if (normalizedInput === normalizedAnswer) {
       // CORRECT
+      console.log("Correct answer!");
       setStatus("correct");
+      setInputValue(""); // Clear input immediately
       // Short delay before next question
       setTimeout(() => {
         handleNext();
+        setIsProcessing(false);
       }, 1000);
     } else {
       // WRONG
+      console.log("Wrong answer. Current status:", status);
       if (status === "idle") {
         // First error
+        console.log("First wrong answer");
         setStatus("wrong1");
         setLastWrongAnswer(inputValue);
         
         // Shake animation plays, then we clear input
         setTimeout(() => {
           setInputValue("");
+          setIsProcessing(false);
         }, 400); // Wait for shake
       } else if (status === "wrong1") {
-        // Second error
+        // Second error - show card
+        console.log("Second wrong answer, setting status to wrong2");
         setStatus("wrong2");
+        setIsProcessing(false);
+        // Don't clear input, show it on the card
       }
     }
   };
 
   const handleNext = () => {
+    console.log("handleNext called, currentIndex:", currentIndex);
     if (currentIndex < questions.length - 1) {
       setCurrentIndex(prev => prev + 1);
       setStatus("idle");
       setInputValue("");
       setLastWrongAnswer(null);
+      setIsProcessing(false);
     } else {
       // End of game
       // Could show a summary screen here. For now, just loop or go home.
@@ -129,8 +155,13 @@ export default function Game() {
         
         {/* The Card Overlay (Appears on 2nd fail) */}
         <AnimatePresence>
-          {status === "wrong2" && (
-            <div className="absolute inset-0 z-40 flex items-center justify-center p-6 bg-background/80 backdrop-blur-sm">
+          {status === "wrong2" && currentQuestion && (
+            <motion.div 
+              className="absolute inset-0 z-40 flex items-center justify-center p-6 bg-background/80 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
               <GameCard 
                 verb={currentQuestion.verb}
                 tense={currentQuestion.tense}
@@ -138,7 +169,7 @@ export default function Game() {
                 correctAnswer={currentQuestion.correctAnswer}
                 onContinue={handleNext}
               />
-            </div>
+            </motion.div>
           )}
         </AnimatePresence>
 

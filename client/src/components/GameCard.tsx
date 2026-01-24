@@ -54,7 +54,6 @@ export function GameCard({ verb, tense, person, correctAnswer, onContinue }: Gam
         </div>
 
         <button
-          autoFocus
           onClick={onContinue}
           onKeyDown={handleKeyDown}
           className="w-full py-4 bg-foreground text-background rounded-xl font-medium text-lg hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
