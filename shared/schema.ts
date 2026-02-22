@@ -1,3 +1,15 @@
+// Function words table
+export const functionWords = pgTable("function_words", {
+  id: serial("id").primaryKey(),
+  italian: text("italian").notNull().unique(),
+  translationEn: text("translation_en").notNull(),
+  translationDe: text("translation_de").notNull(),
+  category: text("category").notNull(),
+});
+
+export const insertFunctionWordSchema = createInsertSchema(functionWords).omit({ id: true });
+export type FunctionWord = typeof functionWords.$inferSelect;
+export type InsertFunctionWord = z.infer<typeof insertFunctionWordSchema>;
 import { pgTable, text, serial, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";

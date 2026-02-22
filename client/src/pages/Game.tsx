@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useVerbs } from "@/hooks/use-verbs";
+import { useFunctionWords } from "@/hooks/use-function-words";
 import { generateQuestions, GameConfig, Question } from "@/lib/game-logic";
 import { Tense } from "@shared/schema";
 import { RippleInput } from "@/components/RippleInput";
@@ -10,7 +11,12 @@ import { Loader2, X, RotateCcw } from "lucide-react";
 
 export default function Game() {
   const [location, setLocation] = useLocation();
-  const { data: verbs, isLoading, error } = useVerbs();
+  // Parse URL params for config - only once on mount
+  const searchParams = new URLSearchParams(window.location.search);
+  const translationType = searchParams.get("translationType") || "verbs";
+
+  const { data: verbs, isLoading: isLoadingVerbs, error: errorVerbs } = useVerbs();
+  const { data: functionWords, isLoading: isLoadingFW, error: errorFW } = useFunctionWords();
   
   // Game State
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -19,21 +25,50 @@ export default function Game() {
   const [inputValue, setInputValue] = useState("");
   const [lastWrongAnswer, setLastWrongAnswer] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+    const [showSummary, setShowSummary] = useState(false);
+    const [correctCount, setCorrectCount] = useState(0);
 
-  // Parse URL params for config - only once on mount
+  // Load questions based on mode and translationType
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const newConfig: GameConfig = {
-      mode: (searchParams.get("mode") as GameConfig["mode"]) || "conjugation",
-      sourceLanguage: (searchParams.get("source") as GameConfig["sourceLanguage"]) || "en",
-      tenses: (searchParams.get("tenses")?.split(",") as Tense[]) || ["Presente"]
-    };
+    const mode = (searchParams.get("mode") as GameConfig["mode"]) || "conjugation";
+    const sourceLanguage = (searchParams.get("source") as GameConfig["sourceLanguage"]) || "en";
+    const tenses = (searchParams.get("tenses")?.split(",") as Tense[]) || ["Presente"];
 
-    if (verbs && verbs.length > 0) {
-      const qs = generateQuestions(verbs, newConfig);
-      setQuestions(qs);
+    let qs: Question[] = [];
+    if (mode === "translation" && translationType === "functionWords") {
+      if (functionWords && functionWords.length > 0) {
+        qs = functionWords.map((fw) => {
+          let prompt = sourceLanguage === "en" ? fw.translationEn : sourceLanguage === "de" ? fw.translationDe : fw.italian;
+          return {
+            id: `fw-${fw.id}`,
+            verb: undefined,
+            tense: undefined,
+            person: undefined,
+            prompt,
+            subPrompt: "Function Word",
+            correctAnswer: fw.italian,
+          };
+        });
+      }
+    } else if (mode === "translation" && translationType === "verbs") {
+      if (verbs && verbs.length > 0) {
+        const config: GameConfig = { mode: "translation", sourceLanguage, tenses: ["Presente"] };
+        qs = generateQuestions(verbs, config);
+      }
+    } else if (mode === "conjugation") {
+      if (verbs && verbs.length > 0) {
+        const config: GameConfig = { mode: "conjugation", sourceLanguage, tenses };
+        qs = generateQuestions(verbs, config);
+      }
     }
-  }, [verbs]);
+    // Shuffle
+    for (let i = qs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [qs[i], qs[j]] = [qs[j], qs[i]];
+    }
+    // Limit to 25
+    setQuestions(qs.slice(0, 25));
+  }, [verbs, functionWords]);
 
   // Log status changes
   useEffect(() => {
@@ -63,6 +98,7 @@ export default function Game() {
       console.log("Correct answer!");
       setStatus("correct");
       setInputValue(""); // Clear input immediately
+      setCorrectCount((prev) => prev + 1);
       // Short delay before next question
       setTimeout(() => {
         handleNext();
@@ -108,21 +144,52 @@ export default function Game() {
   };
 
   // Loading / Error States
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-    </div>
-  );
+  if (
+    (translationType === "functionWords" && isLoadingFW) ||
+    (translationType === "verbs" && isLoadingVerbs) ||
+    (translationType === "functionWords" && !functionWords) ||
+    (translationType === "verbs" && !verbs)
+  ) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
-  if (error || !verbs) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
-      <h2 className="text-2xl font-serif font-bold mb-4">Errore di connessione</h2>
-      <p className="text-muted-foreground mb-8">Unable to load verbs data.</p>
-      <button onClick={() => setLocation("/")} className="underline">Go back home</button>
-    </div>
-  );
+  if (
+    (translationType === "functionWords" && errorFW) ||
+    (translationType === "verbs" && errorVerbs)
+  ) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
+        <h2 className="text-2xl font-serif font-bold mb-4">Errore di connessione</h2>
+        <p className="text-muted-foreground mb-8">Unable to load data.</p>
+        <button onClick={() => setLocation("/")} className="underline">Go back home</button>
+      </div>
+    );
+  }
 
-  if (!currentQuestion) return null;
+  if (showSummary) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="bg-white dark:bg-card border rounded-3xl shadow-xl p-12 max-w-md w-full text-center"
+        >
+          <h2 className="text-3xl font-serif font-bold mb-6">Session Complete!</h2>
+          <p className="text-lg mb-4">You got <span className="font-bold text-green-600">{correctCount}</span> out of <span className="font-bold">{questions.length}</span> correct.</p>
+          <button
+            className="mt-8 px-6 py-3 bg-foreground text-background rounded-xl font-medium text-lg hover:opacity-90 transition-all"
+            onClick={() => setLocation("/")}
+          >
+            Back to Home
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-hidden relative">
@@ -163,9 +230,9 @@ export default function Game() {
               exit={{ opacity: 0 }}
             >
               <GameCard 
-                verb={currentQuestion.verb}
-                tense={currentQuestion.tense}
-                person={currentQuestion.person}
+                verb={currentQuestion.verb ?? undefined}
+                tense={currentQuestion.tense ?? undefined}
+                person={currentQuestion.person ?? undefined}
                 correctAnswer={currentQuestion.correctAnswer}
                 onContinue={handleNext}
               />
@@ -177,23 +244,25 @@ export default function Game() {
         <div className={`transition-opacity duration-300 ${status === "wrong2" ? "opacity-20 blur-sm" : "opacity-100"}`}>
           
           <div className="text-center space-y-2 mb-12">
-            <motion.h2 
-              key={currentQuestion.id + "main"}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-4xl md:text-5xl font-serif font-medium"
-            >
-              {currentQuestion.prompt}
-            </motion.h2>
+            {currentQuestion ? (
+              <motion.h2 
+                key={currentQuestion.id + "main"}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-4xl md:text-5xl font-serif font-medium"
+              >
+                {currentQuestion.prompt}
+              </motion.h2>
+            ) : null}
             
             <motion.div
-              key={currentQuestion.id + "sub"}
+              key={currentQuestion && currentQuestion.id ? currentQuestion.id + "sub" : "sub"}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.1 }}
               className="text-muted-foreground font-mono uppercase tracking-widest text-sm md:text-base"
             >
-              {currentQuestion.subPrompt}
+              {currentQuestion ? currentQuestion.subPrompt : null}
             </motion.div>
           </div>
 

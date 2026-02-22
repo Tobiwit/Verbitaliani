@@ -8,9 +8,15 @@ export interface IStorage {
   createVerb(verb: InsertVerb): Promise<Verb>;
   createVerbs(verbsList: InsertVerb[]): Promise<Verb[]>;
   clearVerbs(): Promise<void>;
+  getFunctionWords(): Promise<FunctionWord[]>;
 }
 
 export class DatabaseStorage implements IStorage {
+    async getFunctionWords(): Promise<FunctionWord[]> {
+      // Import functionWords table from schema
+      const { functionWords } = await import("@shared/schema");
+      return await db.select().from(functionWords);
+    }
   async getVerbs(): Promise<Verb[]> {
     return await db.select().from(verbs);
   }

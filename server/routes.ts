@@ -14,6 +14,16 @@ export async function registerRoutes(
     res.json(verbs);
   });
 
+  // Function Words Endpoint
+  app.get("/api/function-words", async (req, res) => {
+    try {
+      const functionWords = await storage.getFunctionWords();
+      res.json({ words: functionWords });
+    } catch (e) {
+      res.status(500).json({ message: "Failed to load function words", error: String(e) });
+    }
+  });
+
   app.get(api.verbs.get.path, async (req, res) => {
     const verb = await storage.getVerb(Number(req.params.id));
     if (!verb) {

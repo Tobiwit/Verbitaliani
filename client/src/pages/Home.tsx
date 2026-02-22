@@ -11,6 +11,8 @@ export default function Home() {
   const [tenses, setTenses] = useState<Tense[]>(["Presente"]);
   const [mode, setMode] = useState<GameConfig["mode"]>("conjugation");
   const [sourceLang, setSourceLang] = useState<GameConfig["sourceLanguage"]>("en");
+  // New: translation type (verbs or function words)
+  const [translationType, setTranslationType] = useState<"verbs" | "functionWords">("verbs");
 
   const toggleTense = (t: Tense) => {
     setTenses(prev => 
@@ -21,16 +23,16 @@ export default function Home() {
   };
 
   const handleStart = () => {
-    if (tenses.length === 0) return;
-    
-    // Pass config via state or URL params. 
-    // Since wouter useLocation doesn't support state object easily without history API wrapper,
-    // we'll encode it in search params for simplicity and shareability.
+    if (mode === "conjugation" && tenses.length === 0) return;
     const params = new URLSearchParams();
     params.set("mode", mode);
     params.set("source", sourceLang);
-    params.set("tenses", tenses.join(","));
-    
+    if (mode === "conjugation") {
+      params.set("tenses", tenses.join(","));
+    }
+    if (mode === "translation") {
+      params.set("translationType", translationType);
+    }
     setLocation(`/train?${params.toString()}`);
   };
 
@@ -119,10 +121,41 @@ export default function Home() {
             </div>
           )}
 
+          {/* Translation Type Selection - Only if Translation mode */}
+          {mode === "translation" && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-wider text-muted-foreground">
+                <span>Type</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setTranslationType("verbs")}
+                  className={`px-4 py-2 rounded-full border transition-all font-medium text-sm ${
+                    translationType === "verbs"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-transparent text-muted-foreground border-border hover:border-foreground/50"
+                  }`}
+                >
+                  Verbs
+                </button>
+                <button
+                  onClick={() => setTranslationType("functionWords")}
+                  className={`px-4 py-2 rounded-full border transition-all font-medium text-sm ${
+                    translationType === "functionWords"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-transparent text-muted-foreground border-border hover:border-foreground/50"
+                  }`}
+                >
+                  Function Words
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Start Button */}
           <button
             onClick={handleStart}
-            disabled={tenses.length === 0}
+            disabled={mode === "conjugation" ? tenses.length === 0 : false}
             className="group w-full py-6 bg-foreground text-background rounded-2xl font-serif text-2xl font-medium hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3"
           >
             <span>Start Session</span>

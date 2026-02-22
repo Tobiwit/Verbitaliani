@@ -10,9 +10,9 @@ export interface GameConfig {
 
 export interface Question {
   id: string;
-  verb: Verb;
-  tense: Tense;
-  person: Person;
+  verb?: Verb;
+  tense?: Tense;
+  person?: Person;
   prompt: string;
   subPrompt?: string; // e.g. "Passato Prossimo"
   correctAnswer: string;

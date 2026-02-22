@@ -4,9 +4,9 @@ import { Check, ArrowRight } from "lucide-react";
 import { Person } from "@/lib/game-logic";
 
 interface GameCardProps {
-  verb: Verb;
-  tense: Tense;
-  person: Person;
+  verb?: Verb;
+  tense?: Tense;
+  person?: Person;
   correctAnswer: string;
   onContinue: () => void;
 }
@@ -28,10 +28,10 @@ export function GameCard({ verb, tense, person, correctAnswer, onContinue }: Gam
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <h3 className="text-2xl font-serif font-bold text-foreground capitalize">
-              {verb.infinitive}
+              {verb ? verb.infinitive : "Function Word"}
             </h3>
             <p className="text-muted-foreground italic font-serif">
-              {verb.translationEn}
+              {verb ? verb.translationEn : ""}
             </p>
           </div>
           <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center text-red-600">
@@ -41,10 +41,9 @@ export function GameCard({ verb, tense, person, correctAnswer, onContinue }: Gam
 
         <div className="bg-muted/50 rounded-2xl p-6 space-y-4">
           <div className="flex justify-between items-center text-sm text-muted-foreground font-mono uppercase tracking-wider">
-            <span>{tense}</span>
-            <span>{person}</span>
+            <span>{tense ?? ""}</span>
+            <span>{person ?? ""}</span>
           </div>
-          
           <div className="space-y-2">
             <div className="text-sm text-red-500 font-mono uppercase tracking-widest">Correct Answer</div>
             <div className="text-3xl font-serif text-foreground font-medium">
